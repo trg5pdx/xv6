@@ -140,6 +140,8 @@ allocproc(void)
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  p->start_ticks = ticks;
+
   return p;
 }
 
@@ -568,7 +570,13 @@ procdumpP2(struct proc *p, char *state_string)
 void
 procdumpP1(struct proc *p, char *state_string)
 {
-  cprintf("TODO for Project 1, delete this line and implement procdumpP1() in proc.c to print a row\n");
+  /* cprintf("TODO for Project 1, delete this line and implement procdumpP1() in proc.c to print a row\n"); */
+  uint uptime = ticks - p->start_ticks;
+  uint uptime_milliseconds = uptime % 1000;
+  uint uptime_seconds = (uptime - uptime_milliseconds)/1000;
+
+  cprintf("%d\t%s\t\t%d.%d\t%s\t%d\t", p->pid, p->name, uptime_seconds, uptime_milliseconds, state_string, p->sz);
+
   return;
 }
 #endif
