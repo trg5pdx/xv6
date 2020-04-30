@@ -56,6 +56,9 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   uint start_ticks;            // Ticks used for programs to keep track of their uptime
+  #ifdef CS333_P3
+  struct proc * next;          // Pointer to the next process
+  #endif // CS333_P3
 };
 
 // Process memory is laid out contiguously, low addresses first:

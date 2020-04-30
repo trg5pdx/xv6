@@ -9,6 +9,9 @@
 #ifdef CS333_P2
 #include "uproc.h"
 #endif
+#ifdef CS333_P3
+#define statecount NELEM(states)
+#endif
 
 static char *states[] = {
 [UNUSED]    "unused",
@@ -32,6 +35,9 @@ struct ptrs {
 static struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  #ifdef CS333_P3
+  struct ptrs list[statecount];
+  #endif
 } ptable;
 
 // list management function prototypes
@@ -101,6 +107,71 @@ myproc(void) {
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
+#ifdef CS333_P3
+static struct proc*
+allocproc(void)
+{ // PROJECT 3 VERSION, WILL BE MODIFIED
+  struct proc *p;
+  char *sp;
+
+  acquire(&ptable.lock);
+  int found = 0;
+  /*
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == UNUSED) {
+      found = 1;
+      break;
+    }
+  if (!found) {
+    release(&ptable.lock);
+    return 0;
+  } */
+
+  if(ptable.list[UNUSED].head) {
+    p = ptable.list[UNUSED].head;
+    // Adding the process to the embryo list, removing it from unused
+    stateListAdd(ptable.list[EMBRYO], p);
+    stateListRemove(ptable.list[UNUSED],p);
+  }
+  if(!ptable.list[UNUSED]) {
+    release(&ptable.lock);
+    return 0;
+  }
+  /*
+  p->state = EMBRYO;
+  p->pid = nextpid++;
+  release(&ptable.lock);
+
+  // Allocate kernel stack.
+  if((p->kstack = kalloc()) == 0){
+    p->state = UNUSED;
+    return 0;
+  }
+  sp = p->kstack + KSTACKSIZE;
+
+  // Leave room for trap frame.
+  sp -= sizeof *p->tf;
+  p->tf = (struct trapframe*)sp;
+
+  // Set up new context to start executing at forkret,
+  // which returns to trapret.
+  sp -= 4;
+  *(uint*)sp = (uint)trapret;
+
+  sp -= sizeof *p->context;
+  p->context = (struct context*)sp;
+  memset(p->context, 0, sizeof *p->context);
+  p->context->eip = (uint)forkret;
+
+  p->start_ticks = ticks;
+  #ifdef CS333_P2
+  p->cpu_ticks_total = 0;
+  p->cpu_ticks_in = 0;
+  #endif // CS333_P2
+  */
+  return p;
+}
+#else
 static struct proc*
 allocproc(void)
 {
@@ -151,6 +222,7 @@ allocproc(void)
 
   return p;
 }
+#endif // CS333_P3
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -159,6 +231,13 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+
+  #ifdef CS333_P3
+  acquire(&ptable.lock);
+  initProcessLists();
+  initFreeList();
+  release(&ptable.lock);
+  #endif // CS333_P3
 
   p = allocproc();
 
@@ -269,6 +348,54 @@ fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
+#ifdef CS333_P3
+void
+exit(void)
+{ // PROJECT 3 VERSION, WILL BE MODIFIED
+  struct proc *curproc = myproc();
+  struct proc *p;
+  int fd;
+
+  if(curproc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(curproc->ofile[fd]){
+      fileclose(curproc->ofile[fd]);
+      curproc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(curproc->cwd);
+  end_op();
+  curproc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in wait().
+  wakeup1(curproc->parent);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == curproc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  curproc->state = ZOMBIE;
+#ifdef PDX_XV6
+  curproc->sz = 0;
+#endif // PDX_XV6
+  sched();
+  panic("zombie exit");
+
+}
+#else
 void
 exit(void)
 {
@@ -314,9 +441,55 @@ exit(void)
   sched();
   panic("zombie exit");
 }
+#endif // CS333_P3
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
+#ifdef CS333_P3
+int
+wait(void)
+{   // PROJECT 3 VERSION, WILL WORK ON
+  struct proc *p;
+  int havekids;
+  uint pid;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != curproc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+#else
 int
 wait(void)
 {
@@ -359,6 +532,7 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+#endif // CS333_P3
 
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
@@ -368,6 +542,60 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+#ifdef CS333_P3
+void
+scheduler(void)
+{ // PROJECT 3 VERSION, WILL WORK ON
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+#ifdef PDX_XV6
+  int idle;  // for checking if processor is idle
+#endif // PDX_XV6
+
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+#ifdef PDX_XV6
+    idle = 1;  // assume idle unless we schedule a process
+#endif // PDX_XV6
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+#ifdef PDX_XV6
+      idle = 0;  // not idle this timeslice
+#endif // PDX_XV6
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+      #ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+      #endif // CS333_P2
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&ptable.lock);
+#ifdef PDX_XV6
+    // if idle, wait for next interrupt
+    if (idle) {
+      sti();
+      hlt();
+    }
+#endif // PDX_XV6
+  }
+}
+#else
 void
 scheduler(void)
 {
@@ -421,6 +649,8 @@ scheduler(void)
   }
 }
 
+#endif // CS333_P3
+
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -451,6 +681,18 @@ sched(void)
 }
 
 // Give up the CPU for one scheduling round.
+#ifdef CS333_P3
+void
+yield(void)
+{ // PROJECT 3 VERSION, WILL CHANGE LATER
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);  //DOC: yieldlock
+  curproc->state = RUNNABLE;
+  sched();
+  release(&ptable.lock);
+}
+#else
 void
 yield(void)
 {
@@ -461,6 +703,8 @@ yield(void)
   sched();
   release(&ptable.lock);
 }
+#endif // CS333_P3
+
 
 // A fork child's very first scheduling by scheduler()
 // will swtch here.  "Return" to user space.
@@ -485,6 +729,41 @@ forkret(void)
 
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
+#ifdef CS333_P3
+void
+sleep(void *chan, struct spinlock *lk)
+{ // PROJECT 3 VERSION, WILL CHANGE LATER
+  struct proc *p = myproc();
+
+  if(p == 0)
+    panic("sleep");
+
+  // Must acquire ptable.lock in order to
+  // change p->state and then call sched.
+  // Once we hold ptable.lock, we can be
+  // guaranteed that we won't miss any wakeup
+  // (wakeup runs with ptable.lock locked),
+  // so it's okay to release lk.
+  if(lk != &ptable.lock){  //DOC: sleeplock0
+    acquire(&ptable.lock);  //DOC: sleeplock1
+    if (lk) release(lk);
+  }
+  // Go to sleep.
+  p->chan = chan;
+  p->state = SLEEPING;
+
+  sched();
+
+  // Tidy up.
+  p->chan = 0;
+
+  // Reacquire original lock.
+  if(lk != &ptable.lock){  //DOC: sleeplock2
+    release(&ptable.lock);
+    if (lk) acquire(lk);
+  }
+}
+#else
 void
 sleep(void *chan, struct spinlock *lk)
 {
@@ -518,10 +797,22 @@ sleep(void *chan, struct spinlock *lk)
     if (lk) acquire(lk);
   }
 }
+#endif // CS333_P3
 
 //PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
+#ifdef CS333_P3
+static void
+wakeup1(void *chan)
+{ // PROJECT 3 VERSION, WILL WORK ON LATER
+  struct proc *p;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan == chan)
+      p->state = RUNNABLE;
+}
+#else
 static void
 wakeup1(void *chan)
 {
@@ -531,6 +822,7 @@ wakeup1(void *chan)
     if(p->state == SLEEPING && p->chan == chan)
       p->state = RUNNABLE;
 }
+#endif // CS333_P3
 
 // Wake up all processes sleeping on chan.
 void
@@ -544,6 +836,7 @@ wakeup(void *chan)
 // Kill the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
+#ifdef CS333_P3
 int
 kill(int pid)
 {
@@ -563,6 +856,27 @@ kill(int pid)
   release(&ptable.lock);
   return -1;
 }
+#else
+int
+kill(int pid)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->killed = 1;
+      // Wake process from sleep if necessary.
+      if(p->state == SLEEPING)
+        p->state = RUNNABLE;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+#endif // CS333_P3
 
 #ifdef CS333_P2
 int
@@ -716,6 +1030,42 @@ procdump(void)
   cprintf("$ ");  // simulate shell prompt
 #endif // CS333_P1
 }
+
+#ifdef CS333_P3
+// These functions are meant to be used for testing the functionality of the new process management system
+// rundump is meant for displaying the runnable processes
+void
+rundump(void)
+{
+
+  return;
+}
+// unusedump is meant for displaying the unused processes
+void
+unusedump(void)
+{
+
+
+  return;
+}
+// sleepdump is meant for displaying the sleeping processes
+void
+sleepdump(void)
+{
+
+
+  return;
+}
+// zombdump is meant for displaying the zombie processes
+void
+zombdump(void)
+{
+
+
+  return;
+}
+
+#endif // CS333_P3
 
 #if defined(CS333_P3)
 // list management helper functions

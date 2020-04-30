@@ -202,22 +202,40 @@ void
 consoleintr(int (*getc)(void))
 {
   int c, doprocdump = 0;
-#ifdef PDX_XV6
+  #ifdef CS333_P3
+  // Storing values for cases to check later in the loop
+  int dorundump, dounusedump, dosleepdump, dozombdump = 0;
+  #endif // CS333_P3
+  #ifdef PDX_XV6
   int shutdown = FALSE;
-#endif // PDX_XV6
+  #endif // PDX_XV6
 
   acquire(&cons.lock);
   while((c = getc()) >= 0){
     switch(c){
     case C('P'):  // Process listing.
-      // procdump() locks cons.lock indirectly; invoke later
       doprocdump = 1;
       break;
-#ifdef PDX_XV6
+    #ifdef CS333_P3
+    case C('R'):  // Runnable Listing.
+      dorundump = 1;
+      break;
+    case C('F'):  // Unused Listing.
+      dounusedump = 1;
+      break;
+    case C('S'):  // Sleeping listing.
+      dosleepdump = 1;
+      break;
+    case C('Z'):  // Zombie listing.
+      dozombdump = 1;
+      break;
+
+    #endif // CS333_P3
+    #ifdef PDX_XV6
     case C('D'):
       shutdown = TRUE;
       break;
-#endif // PDX_XV6
+    #endif // PDX_XV6
     case C('U'):  // Kill line.
       while(input.e != input.w &&
             input.buf[(input.e-1) % INPUT_BUF] != '\n'){
@@ -252,6 +270,21 @@ consoleintr(int (*getc)(void))
   if(doprocdump) {
     procdump();  // now call procdump() wo. cons.lock held
   }
+  #ifdef CS333_P3
+  if(dorundump) {
+    rundump();
+  }
+  if(dounusedump) {
+    unusedump();
+  }
+  if(dosleepdump) {
+    sleepdump();
+  }
+  if(dozombdump) {
+    zombdump();
+  }
+
+  #endif // CS333_P3
 }
 
 int
