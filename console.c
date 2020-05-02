@@ -204,7 +204,10 @@ consoleintr(int (*getc)(void))
   int c, doprocdump = 0;
   #ifdef CS333_P3
   // Storing values for cases to check later in the loop
-  int dorundump, dounusedump, dosleepdump, dozombdump = 0;
+  int dorundump = 0;
+  int dounusedump = 0;
+  int dosleepdump = 0;
+  int dozombdump = 0;
   #endif // CS333_P3
   #ifdef PDX_XV6
   int shutdown = FALSE;
