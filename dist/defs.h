@@ -127,6 +127,12 @@ void            yield(void);
 #ifdef CS333_P2
 int             grabprocs(struct uproc * up, int processNum);
 #endif // CS333_P2
+#ifdef CS333_P3
+void            rundump(void);
+void            unusedump(void);
+void            sleepdump(void);
+void            zombdump(void);
+#endif // CS333_P3
 
 // swtch.S
 void            swtch(struct context**, struct context*);

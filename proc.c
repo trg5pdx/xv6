@@ -115,18 +115,12 @@ allocproc(void)
   char *sp;
 
   acquire(&ptable.lock);
-  // int found = 0;
-  /*
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED) {
-      found = 1;
-      break;
-    }
-  if (!found) {
+
+  // Check for if there isn't any process in the list
+  if(!ptable.list[UNUSED].head) {
     release(&ptable.lock);
     return 0;
-  } */
-
+  }
   if(ptable.list[UNUSED].head) {
     p = ptable.list[UNUSED].head;
     // Removing the process from the unused list
@@ -138,18 +132,17 @@ allocproc(void)
     p->state = EMBRYO;
     stateListAdd(&ptable.list[EMBRYO], p);
   }
-  // Check for if there isn't any process in the list
-  if(!ptable.list[UNUSED].head) {
-    release(&ptable.lock);
-    return 0;
-  }
   p->state = EMBRYO;
   p->pid = nextpid++;
-  release(&ptable.lock);
 
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
+    if(stateListRemove(&ptable.list[EMBRYO],p) == -1) {
+      panic("ERROR: Failed to remove from embryo process list!");
+    }
+    assertState(p, EMBRYO, __FUNCTION__, __LINE__);
     p->state = UNUSED;
+    stateListAdd(&ptable.list[UNUSED], p);
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -174,6 +167,7 @@ allocproc(void)
   p->cpu_ticks_in = 0;
   #endif // CS333_P2
 
+  release(&ptable.lock);
   return p;
 }
 #else
@@ -375,7 +369,7 @@ fork(void)
 #ifdef CS333_P3
 void
 exit(void)
-{ // PROJECT 3 VERSION, WILL BE MODIFIED
+{ // PROJECT 3 VERSION
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
@@ -402,7 +396,7 @@ exit(void)
   wakeup1(curproc->parent);
 
   // Pass abandoned children to init.
-  for(int i = EMBRYO; i <= ZOMBIE; ++i) {
+  for(enum procstate i = EMBRYO; i <= ZOMBIE; ++i) {
     p = ptable.list[i].head;
     while(p) {
       if(p->parent == curproc) {
@@ -515,7 +509,7 @@ wait(void)
           }
           assertState(p, ZOMBIE, __FUNCTION__, __LINE__);
           p->state = UNUSED;
-          stateListAdd(&ptable.list[ZOMBIE], p);
+          stateListAdd(&ptable.list[UNUSED], p);
           release(&ptable.lock);
           return pid;
         }
@@ -730,7 +724,7 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   #ifdef CS333_P2
-  p->cpu_ticks_total = ticks;
+  p->cpu_ticks_total += ticks - p->cpu_ticks_in;
   #endif // CS333_P2
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
@@ -874,8 +868,10 @@ static void
 wakeup1(void *chan)
 { // PROJECT 3 VERSION, WILL WORK ON LATER
   struct proc *p = ptable.list[SLEEPING].head;
+  struct proc *t = NULL;
 
   while(p) {
+    t = p->next;
     if(p->chan == chan) {
       if(stateListRemove(&ptable.list[SLEEPING], p) == -1) {
         panic("ERROR: failed to remove process from sleeping list!");
@@ -884,7 +880,7 @@ wakeup1(void *chan)
       p->state = RUNNABLE;
       stateListAdd(&ptable.list[RUNNABLE], p);
     }
-    p = p->next;
+    p = t;
   }
 }
 #else
@@ -916,31 +912,26 @@ int
 kill(int pid)
 { // PROJECT 3 VERSION
   struct proc *p;
-  int processFound = 0;
-  int i = EMBRYO;
 
   acquire(&ptable.lock);
-  while(processFound == 0) {
+  for(enum procstate i = EMBRYO; i <= ZOMBIE; ++i) {
     p = ptable.list[i].head;
-
     while(p) {
       if(p->pid == pid) {
         p->killed = 1;
-        processFound = 1;
-        if(stateListRemove(&ptable.list[i], p) == -1) {
-          panic("ERROR: failed to remove process from sleeping list!");
+        if(i == SLEEPING) {
+          if(stateListRemove(&ptable.list[i], p) == -1) {
+            panic("ERROR: failed to remove process from sleeping list!");
+          }
+          assertState(p, i, __FUNCTION__, __LINE__);
+          p->state = RUNNABLE;
+          stateListAdd(&ptable.list[RUNNABLE], p);
         }
-        assertState(p, i, __FUNCTION__, __LINE__);
-        p->state = RUNNABLE;
-        stateListAdd(&ptable.list[RUNNABLE], p);
         release(&ptable.lock);
         return 0;
       }
       p = p->next;
     }
-    if(i <= ZOMBIE)
-      break;
-    ++i;
   }
 
   release(&ptable.lock);
@@ -1024,8 +1015,26 @@ procdumpP4(struct proc *p, char *state_string)
 void
 procdumpP3(struct proc *p, char *state_string)
 {
-  cprintf("TODO for Project 3, delete this line and implement procdumpP3() in proc.c to print a row\n");
+  // cprintf("TODO for Project 3, delete this line and implement procdumpP3() in proc.c to print a row\n");
+  // return;
+  uint uptime = ticks - p->start_ticks;
+  uint uptime_milliseconds = uptime % 1000;
+  uint uptime_seconds = (uptime - uptime_milliseconds)/1000;
+  uint ppid;
+
+  uint cpu_ticksMS = p->cpu_ticks_total % 1000;
+  uint cpu_ticksS = (p->cpu_ticks_total - cpu_ticksMS)/1000;
+
+
+  if(!p->parent)
+    ppid = p->pid;
+  else
+    ppid = p->parent->pid;
+
+  cprintf("%d\t%s\t\t%d\t%d\t%d\t%d.%d\t%d.%d\t%s\t%d\t", p->pid, p->name, p->uid, p->gid, ppid, uptime_seconds, uptime_milliseconds, cpu_ticksS, cpu_ticksMS, state_string, p->sz);
+
   return;
+
 }
 #elif defined(CS333_P2)
 void
@@ -1203,13 +1212,14 @@ zombdump(void)
     else {
       // Checking to see if the parent exists to see what pid to print
       if(p->parent) {
-        cprintf("(%d, %d) -> ", p->pid, p->parent->pid);
+        cprintf(" (%d, %d)", p->pid, p->parent->pid);
       }
       else
-        cprintf("(%d, %d) -> ", p->pid, p->pid);
+        cprintf(" (%d, %d)", p->pid, p->pid);
     }
     p = p->next;
   }
+  cprintf("\n");
 
   release(&ptable.lock);
   return;
