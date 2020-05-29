@@ -185,7 +185,7 @@ sys_getprocs(void)
 
   grabprocs(up, processNum);
 
-  cprintf("PID \t Name \t UID \t GID \t PPID \t Elapsed CPU time State Size \n");
+  cprintf("PID \t Name \t UID \t GID \t PPID \t Prio \t Elapsed CPU time State Size \n");
   for(int i = 0; i < processNum; ++i)
   {
     if(up[i].pid == 0)
@@ -196,7 +196,7 @@ sys_getprocs(void)
     cpuTimeMS = up[i].CPU_total_ticks % 1000;
     cpuTimeS = (up[i].CPU_total_ticks - cpuTimeMS) / 1000;
 
-    cprintf("%d\t %s\t %d\t %d\t %d\t %d.%d\t %d.%d\t  %s%d\n", up[i].pid, up[i].name, up[i].uid, up[i].gid, up[i].ppid, elapsedS, elapsedMS, cpuTimeS, cpuTimeMS, up[i].state, up[i].size);
+    cprintf("%d\t %s\t %d\t %d\t %d\t %d\t %d.%d\t %d.%d\t  %s%d\n", up[i].pid, up[i].name, up[i].uid, up[i].gid, up[i].ppid, up[i].priority, elapsedS, elapsedMS, cpuTimeS, cpuTimeMS, up[i].state, up[i].size);
 
   }
 

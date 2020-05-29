@@ -28,7 +28,12 @@
 #define DEF_UID 1
 #define DEF_GID 1
 #define PROCSIZE 16 // Size used by uproc process array; different from NPROC for testing purposes
-
 #endif // CS333_P2
+
+#ifdef CS333_P4
+#define MAXPRIO 2
+#define DEFAULT_BUDGET 300
+#endif
+
 
 #endif  // PDX_INCLUDE
