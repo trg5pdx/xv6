@@ -50,6 +50,7 @@ checkPriority(void)
   printf(1, "Testing that process starts at MAXPRIO\n");
 
   pid = getpid();
+
   originalPriority = getpriority(pid);
 
   printf(1, "Priority after program start is %d\n", originalPriority);

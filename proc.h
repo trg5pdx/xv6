@@ -61,7 +61,7 @@ struct proc {
   #endif // CS333_P3
   #ifdef CS333_P4
   uint priority;                // Stores the priority of a process; used to keep track of queue process is on
-  uint budget;                  // Budget for a process; used for determining when a process gets demoted
+  int budget;                  // Budget for a process; used for determining when a process gets demoted
   #endif // CS333_P4
 };
 

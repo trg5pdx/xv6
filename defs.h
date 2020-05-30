@@ -134,6 +134,10 @@ void            unusedump(void);
 void            sleepdump(void);
 void            zombdump(void);
 #endif // CS333_P3
+#ifdef CS333_P4
+int             setpriority(int pid, int priority);
+int             getpriority(int pid);
+#endif // CS333_P4
 
 // swtch.S
 void            swtch(struct context**, struct context*);

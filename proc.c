@@ -12,9 +12,6 @@
 #ifdef CS333_P3
 #define statecount NELEM(states)
 #endif // CS333_P3
-#ifdef CS333_P4
-#define TICKS_TO_PROMOTE 3000
-#endif // CS333_P4
 
 static char *states[] = {
 [UNUSED]    "unused",
@@ -376,16 +373,6 @@ fork(void)
   }
   assertState(np, EMBRYO, __FUNCTION__, __LINE__);
   np->state = RUNNABLE;
-
-  // Updating promote time, and checking if a promotion is needed
-  if(ticks >= ptable.PromoteAtTime) {
-    if(np->priority < MAXPRIO) {
-      ++np->priority;
-      np->budget = DEFAULT_BUDGET;
-    }
-    ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
-  }
-
   stateListAdd(&ptable.ready[np->priority], np);
   #elif CS333_P3
   // Removing the process from the Embryo list, adding to runnable list
@@ -648,8 +635,9 @@ wait(void)
 void
 scheduler(void)
 { // PROJECT 4 VERSION
-  struct proc *p;
+  struct proc *p, *current;
   struct cpu *c = mycpu();
+  int i = MAXPRIO;
   c->proc = 0;
 #ifdef PDX_XV6
   int idle;  // for checking if processor is idle
@@ -664,49 +652,69 @@ scheduler(void)
 #endif // PDX_XV6
     // Loop over process table looking for process to run.
 
-    for(int i = MAXPRIO; i >= 0; --i) {
-      acquire(&ptable.lock);
+    acquire(&ptable.lock);
+    for(i = MAXPRIO; i >= 0; --i) {
       p = ptable.ready[i].head;
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
       if(p) {
-        #ifdef PDX_XV6
-        idle = 0;  // not idle this timeslice
-        #endif // PDX_XV6
-        c->proc = p;
-        switchuvm(p);
+        break;
+      }
+    }
 
-        if(stateListRemove(&ptable.ready[i], p) == -1) {
-          panic("ERROR: failed to remove process from running list!");
-        }
-        assertState(p, RUNNABLE, __FUNCTION__, __LINE__);
-        p->state = RUNNING;
-
-        // Updating promote time, and checking if a promotion is needed
-        if(ticks >= ptable.PromoteAtTime) {
+    if(ticks >= ptable.PromoteAtTime) {
+      for(int i = SLEEPING; i < RUNNING; ++i) {
+        p = ptable.list[i].head;
+        while(p) {
           if(p->priority < MAXPRIO) {
             ++p->priority;
             p->budget = DEFAULT_BUDGET;
           }
+          p = p->next;
         }
-
-        stateListAdd(&ptable.list[RUNNING], p);
-
-        #ifdef CS333_P2
-        p->cpu_ticks_in = ticks;
-        #endif // CS333_P2
-
-        swtch(&(c->scheduler), p->context);
-        switchkvm();
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-
       }
-      release(&ptable.lock);
+      for(int i = MAXPRIO - 1; i >= 0; --i) {
+        p = ptable.ready[i].head;
+        while(p) {
+          current = p->next;
+          ++p->priority;
+          p->budget = DEFAULT_BUDGET;
+          if(stateListRemove(&ptable.ready[i], p) == -1) {
+            panic("ERROR: failed to remove process from runnable list!");
+          }
+          stateListAdd(&ptable.ready[p->priority], p);
+          p = current;
+        }
+      }
+      ptable.PromoteAtTime = ticks + TICKS_TO_PROMOTE;
     }
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    if(p) {
+      #ifdef PDX_XV6
+      idle = 0;  // not idle this timeslice
+      #endif // PDX_XV6
+      c->proc = p;
+      switchuvm(p);
+
+      if(stateListRemove(&ptable.ready[i], p) == -1) {
+        panic("ERROR: failed to remove process from runnable list!");
+      }
+      assertState(p, RUNNABLE, __FUNCTION__, __LINE__);
+      p->state = RUNNING;
+      stateListAdd(&ptable.list[RUNNING], p);
+
+      #ifdef CS333_P2
+      p->cpu_ticks_in = ticks;
+      #endif // CS333_P2
+
+      swtch(&(c->scheduler), p->context); switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&ptable.lock);
 #ifdef PDX_XV6
     // if idle, wait for next interrupt
     if (idle) {
@@ -977,7 +985,6 @@ sleep(void *chan, struct spinlock *lk)
     --p->priority;
     p->budget = DEFAULT_BUDGET;
   }
-
   #endif // CS333_P4
 
   sched();
@@ -1638,6 +1645,7 @@ setpriority(int pid, int priority) {
     return -1;
   }
 
+  acquire(&ptable.lock);
   for(int i = 0; i < MAXPRIO + 1; ++i) {
     p = ptable.ready[i].head;
     while(p) {
@@ -1647,6 +1655,8 @@ setpriority(int pid, int priority) {
       }
       p = p->next;
     }
+    if(foundProc == 1)
+      break;
   }
 
   // This works since the old runnable list is NULL
@@ -1659,20 +1669,26 @@ setpriority(int pid, int priority) {
       }
       p = p->next;
     }
+    if(foundProc == 1)
+      break;
   }
 
   if(foundProc == 0) {
+    release(&ptable.lock);
     return -1;
   }
 
   if(p->priority != priority) {
-    if(stateListRemove(&ptable.ready[p->priority], p) == -1) {
-      panic("ERROR: failed to remove process inside of setpriority function!\n");
-    }
     p->priority = priority;
     p->budget = DEFAULT_BUDGET;
-    stateListAdd(&ptable.ready[priority], p);
+    if(p->state == RUNNABLE) {
+      if(stateListRemove(&ptable.ready[p->priority], p) == -1) {
+        panic("ERROR: failed to remove process inside of setpriority function!\n");
+      }
+      stateListAdd(&ptable.ready[priority], p);
+    }
   }
+  release(&ptable.lock);
   return 0;
 }
 
@@ -1680,11 +1696,14 @@ int
 getpriority(int pid) {
   struct proc * p = NULL;
   int foundProc = 0;
+  int rv;
 
   if(pid < 0) {
     return -1;
   }
 
+  acquire(&ptable.lock);
+  // Looping through the ready priority list to find process
   for(int i = 0; i < MAXPRIO + 1; ++i) {
     p = ptable.ready[i].head;
     while(p) {
@@ -1694,13 +1713,34 @@ getpriority(int pid) {
       }
       p = p->next;
     }
+    if(foundProc == 1)
+      break;
+  }
+  // If process isn't already found, now looking in other state lists
+  if(foundProc == 0) {
+    for(int i = UNUSED; i <= ZOMBIE; ++i) {
+      p = ptable.list[i].head;
+      while(p) {
+        if(pid == p->pid) {
+          cprintf("p->pid: %d p->priority: %d \n", p->pid, p->priority);
+          foundProc = 1;
+          break;
+        }
+        p = p->next;
+      }
+      if(foundProc == 1)
+        break;
+    }
   }
 
   if(foundProc == 0) {
+    release(&ptable.lock);
     return -1;
   }
 
-  return p->priority;
+  rv = p->priority;
+  release(&ptable.lock);
+  return rv;
 }
 #endif // CS333_P4
 

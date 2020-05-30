@@ -13,6 +13,7 @@
 #include "uproc.h"
 #endif // CS333_P2
 
+
 int
 sys_fork(void)
 {
@@ -204,3 +205,28 @@ sys_getprocs(void)
 }
 
 #endif // CS333_P2
+
+#ifdef CS333_P4
+int
+sys_setpriority(void) {
+  int pid;
+  int priority;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argint(1, &priority) < 0)
+    return -1;
+
+  return setpriority(pid, priority);
+}
+
+int
+sys_getpriority(void) {
+  int pid;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+
+  return getpriority(pid);
+}
+#endif // CS333_P4
