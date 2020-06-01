@@ -239,7 +239,7 @@ roundRobinTest(void) {
   // children are stuck in loops, so only the original
   // will run this code
   printf(1, "%d Child Processes Created and are looping forever. Parent is now sleeping for 5 sec. Use control-r rapidly\n", count);
-  sleep(5 * TPS);
+  sleep(20 * TPS);
   for (int i = 0; i < times; ++i) {
     // kill the child processes
     kill(children[i]);
