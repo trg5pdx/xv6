@@ -205,6 +205,9 @@ ialloc(uint dev, short type)
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
+      dip->uid = DEFAULT_UID;
+      dip->gid = DEFAULT_GID;
+      dip->mode.asInt = DEFAULT_MODE;
       log_write(bp);   // mark it allocated on the disk
       brelse(bp);
       return iget(dev, inum);
@@ -229,6 +232,9 @@ iupdate(struct inode *ip)
   dip->type = ip->type;
   dip->major = ip->major;
   dip->minor = ip->minor;
+  dip->uid = ip->uid;
+  dip->gid = ip->gid;
+  dip->mode.asInt = ip->mode.asInt;
   dip->nlink = ip->nlink;
   dip->size = ip->size;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
@@ -302,6 +308,9 @@ ilock(struct inode *ip)
     ip->type = dip->type;
     ip->major = dip->major;
     ip->minor = dip->minor;
+    ip->uid = dip->uid;
+    ip->gid = dip->gid;
+    ip->mode.asInt = dip->mode.asInt;
     ip->nlink = dip->nlink;
     ip->size = dip->size;
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
@@ -443,6 +452,9 @@ stati(struct inode *ip, struct stat *st)
   st->dev = ip->dev;
   st->ino = ip->inum;
   st->type = ip->type;
+  st->uid = ip->uid;
+  st->gid = ip->gid;
+  st->stat_mode_t->asInt = ip->mode.asInt;
   st->nlink = ip->nlink;
   st->size = ip->size;
 }
