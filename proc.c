@@ -1389,16 +1389,25 @@ rundump(void)
 {
   struct proc* p = NULL;
   acquire(&ptable.lock);
+  // p = ptable.list[RUNNABLE].head;
 
   cprintf("Ready List Processes: \n");
+  /* while(p) {
+    // Checking if its at the end of the list so the data gets formatted correctly
+    if(p != ptable.list[RUNNABLE].tail)
+      cprintf("%d -> ", p->pid);
+    else
+      cprintf("%d \n", p->pid);
+    p = p->next;
+  } */
   for(int i = MAXPRIO; i >= 0; --i) {
     cprintf("%d: ", i);
     p = ptable.ready[i].head;
     while(p) {
       if(p != ptable.ready[i].tail)
-        cprintf("(%d, %d) -> ", p->pid, p->budget);
+        cprintf("(%d, %d) -> ", p->pid, p->priority);
       else
-        cprintf("(%d, %d) \n", p->pid, p->budget);
+        cprintf("(%d, %d) \n", p->pid, p->priority);
       p = p->next;
     }
     if(!p)
@@ -1713,6 +1722,7 @@ getpriority(int pid) {
       p = ptable.list[i].head;
       while(p) {
         if(pid == p->pid) {
+          cprintf("p->pid: %d p->priority: %d \n", p->pid, p->priority);
           foundProc = 1;
           break;
         }

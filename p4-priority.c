@@ -30,7 +30,6 @@ testPromotion(void)
 
   if (newPrio != prio && newPrio > prio) {
     printf(1, "Promotion has occurred.\n");
-    sleep(TPS * 5);
     printf(1, "**** TEST PASSES ****\n");
   } else {
     printf(2, "Either promotion did not occur or an unexpected change in priority happened.\n");
@@ -110,38 +109,12 @@ checkPriority(void)
     printf(2, "  **** TEST FAILED ****\n\n");
   }
 
-  // Test that setting the priority doesn't change the priority
-  printf(1, "Test that setting the priority doesn't change the priority\n");
-  originalPriority = getpriority(pid);
-  printf(1, "Original priority: %d \n", originalPriority);
-  rc = setpriority(pid, originalPriority);
-  if(rc != 0)
-    printf(2, "  **** TEST FAILED ****\n\n");
-  else {
-    newPriority = getpriority(pid);
-    if(newPriority == originalPriority) {
-      printf(2, "new priority: %d \n", newPriority);
-      printf(1, "  **** TEST PASSED ****\n\n\n");
-    }
-    else
-      printf(2, "  **** TEST FAILED ****\n\n");
-  }
-
   // Test the priority of a known PID:
   pid = 1; // init
   int prio = getpriority(pid);
   printf(1, "Priority for pid %d is %d\n", pid, prio);
   printf(1, "Press C-p to verify.\n");
   sleep(5 * TPS);
-
-  // Test that getpriority returns -1 if given an invalid pid
-  pid = 32000;
-  printf(1, "TEST: giving getpriority an invalid pid. pid: %d \n", pid);
-  int rv = getpriority(pid);
-  if(rv != 0) {
-    printf(1, "return value: %d \n", rv);
-    printf(1, "*****TEST PASSED****\n");
-  }
 }
 
 int

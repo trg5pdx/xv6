@@ -13,7 +13,6 @@
 #include "uproc.h"
 #endif // CS333_P2
 
-
 int
 sys_fork(void)
 {
@@ -186,7 +185,7 @@ sys_getprocs(void)
 
   grabprocs(up, processNum);
 
-  cprintf("PID \t Name \t UID \t GID \t PPID \t Prio \t Elapsed CPU time State Size \n");
+  cprintf("PID \t Name \t UID \t GID \t PPID \t Elapsed CPU time State Size \n");
   for(int i = 0; i < processNum; ++i)
   {
     if(up[i].pid == 0)
@@ -197,7 +196,7 @@ sys_getprocs(void)
     cpuTimeMS = up[i].CPU_total_ticks % 1000;
     cpuTimeS = (up[i].CPU_total_ticks - cpuTimeMS) / 1000;
 
-    cprintf("%d\t %s\t %d\t %d\t %d\t %d\t %d.%d\t %d.%d\t  %s%d\n", up[i].pid, up[i].name, up[i].uid, up[i].gid, up[i].ppid, up[i].priority, elapsedS, elapsedMS, cpuTimeS, cpuTimeMS, up[i].state, up[i].size);
+    cprintf("%d\t %s\t %d\t %d\t %d\t %d.%d\t %d.%d\t  %s%d\n", up[i].pid, up[i].name, up[i].uid, up[i].gid, up[i].ppid, elapsedS, elapsedMS, cpuTimeS, cpuTimeMS, up[i].state, up[i].size);
 
   }
 
@@ -205,28 +204,3 @@ sys_getprocs(void)
 }
 
 #endif // CS333_P2
-
-#ifdef CS333_P4
-int
-sys_setpriority(void) {
-  int pid;
-  int priority;
-
-  if(argint(0, &pid) < 0)
-    return -1;
-  if(argint(1, &priority) < 0)
-    return -1;
-
-  return setpriority(pid, priority);
-}
-
-int
-sys_getpriority(void) {
-  int pid;
-
-  if(argint(0, &pid) < 0)
-    return -1;
-
-  return getpriority(pid);
-}
-#endif // CS333_P4
