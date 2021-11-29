@@ -94,6 +94,7 @@ p2testsuite.c
 p2-test.c
 p3-test.c
 p4-test.c
+p4-priority.c
 ps.c
 time.c
 p3-test-the-Evans.c
