@@ -2,6 +2,12 @@ xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
 Version 6 (v6).  xv6 loosely follows the structure and style of v6,
 but is implemented for a modern x86-based multiprocessor using ANSI C.
 
+NOTE ON PROJECT 5
+This is an old assignment that wasn't assigned anymore at the time I took
+the class, and I decided to work shortly after the class ended, but I 
+never finished it. This project was mainly focused on working on adding 
+file permissions to xv6.
+
 ACKNOWLEDGMENTS
 
 xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
