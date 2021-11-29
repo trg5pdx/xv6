@@ -34,15 +34,7 @@
 #define MAXPRIO 6
 #define TICKS_TO_PROMOTE 3000
 #define DEFAULT_BUDGET 300
-#endif // CS333_P4
+#endif
 
-#ifdef CS333_P5
-// DEFAULT_UID is the default value for both the first process and files
-// created by mkfs when the file system is created
-#define DEFAULT_UID 0
-#define DEFAULT_GID 0
-// DEFAULT_MODE group of defines set the default permissions for processes & files, usually set as 755
-#define DEFAULT_MODE 0755
-#endif // CS333_P5
 
 #endif  // PDX_INCLUDE

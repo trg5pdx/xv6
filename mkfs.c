@@ -228,9 +228,6 @@ ialloc(ushort type)
 
   bzero(&din, sizeof(din));
   din.type = xshort(type);
-  din.uid = xshort(DEFAULT_UID);
-  din.gid = xshort(DEFAULT_GID);
-  din.mode.asInt = xint(DEFAULT_MODE);
   din.nlink = xshort(1);
   din.size = xint(0);
   winode(inum, &din);
